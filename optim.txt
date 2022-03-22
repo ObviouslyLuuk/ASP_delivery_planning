@@ -1,5 +1,5 @@
 all wait on the same turn
-symmetry breaking: moving somewhere and then moving back, but only if it wasn't making space for another
-moving away from delivery when there's still demand and packages on board
+symmetry breaking: moving somewhere and then moving back
+truck moving if it doesn't deliver anything
 truck 3 waiting on the first turn
 use charger as base case for shortest_distance and don't include self connections

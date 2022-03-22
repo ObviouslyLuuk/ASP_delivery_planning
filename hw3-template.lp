@@ -56,10 +56,10 @@ TIME STEPS:
 
 #const t=25. % This is an upper bound on the number of time steps needed
 possible_time(1..t).
-{ time(T) : possible_time(T) }.									% Create all subsets of time
-:- not time(1).													% Make sure the first timestep is there
-:- possible_time(T), possible_time(T+1), time(T+1), not time(T).% Make sure timesteps are consecutive
-last_timestep(M) :- M = #max { T : time(T) }.						% Get the last timestep of the subset
+{ time(T) : possible_time(T) }.										% Create all subsets of time
+:- not time(1).														% Make sure the first timestep is there
+:- possible_time(T), possible_time(T+1), time(T+1), not time(T).	% Make sure timesteps are consecutive
+last_timestep(M) :- time(M), not time(T) : possible_time(T), T > M. % Get the last timestep of the subset
 
 %*
 ACTIONS:
@@ -177,9 +177,7 @@ RESTRICTIONS ON THE ACTIONS:
 :- do(Truck,move(I,J),T), state(T,battery(Truck,B)), B < 1. 		% Can't move with dead battery
 :- do(Truck1,move(I,J),T), state(T+1,at(Truck2,J)), Truck1!=Truck2. % Can't move to node where another truck will be
 :- do(Truck1,move(I1,J1),T), do(Truck2,move(I2,J2),T), Truck1!=Truck2, I1=J2, I2=J1. % Can't pass another truck on a piece of road
-
-% extra constraints
-:- state(T,at(Truck1,Node)), state(T,at(Truck2,Node)), Truck1 != Truck2.	% Two trucks can't be at the same node	
+:- state(T,at(Truck1,Node)), state(T,at(Truck2,Node)), Truck1 != Truck2.			 % Two trucks can't be at the same node
 
 %*
 GOAL CONDITIONS:
@@ -225,20 +223,6 @@ OPTIMIZATION:
 
 % Find optimal solution by minimizing the last timestep
 #minimize { T : last_timestep(T) }.
-
-%*
-OPTIONAL: ADDITIONAL RULES
-- If you add anything to your program that doesn't fit in any of the other
-  headings, put it here.
-*%
-
-
-% Find at which timestep the goal is first reached
-% goal_first_reached(M) :- M = #min { T : goal_reached(T) }, goal_reached(AnyTime).
-
-% :- do(Truck,move(I,J),T), do(Truck,move(J,I),T+1).	% No reason for truck to go back and forth
-% :- do(Truck,wait,T) : truck(Truck).					% No reason to all wait at the same time
-
 #show.
 
 %*
