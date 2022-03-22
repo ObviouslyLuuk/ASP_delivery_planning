@@ -175,24 +175,15 @@ RESTRICTIONS ON THE ACTIONS:
 :- do(Truck1,move(I1,J1),T), do(Truck2,move(I2,J2),T), Truck1!=Truck2, I1=J2, I2=J1. % Can't pass another truck on a piece of road
 
 % extra constraints
-% :- state(T,truck_load(Truck,L)), load_capacity(Truck,Cap), L > Cap, time(T). % Truck load can never be over capacity
-% :- state(T,truck_load(Truck,L)), L < 0, time(T), truck(Truck).				 % Truck load can never be less than 0
-% :- state(T,battery(Truck,B)), B > battery_capacity, time(T), truck(Truck).   % Truck battery can never be over capacity
-% :- state(T,battery(Truck,B)), B < 0, time(T), truck(Truck).					 % Truck battery can never be less than 0	
-% :- state(T,supply(S)), S < 0, time(T).										 % Supply can never be less than 0
-% :- state(T,demand(Node,D)), D < 0, time(T), delivery(Node).					 % Demand can never be less than 0
-:- state(T,at(Truck1,Node)), state(T,at(Truck2,Node)), Truck1 != Truck2.		 % Two trucks can't be at the same node	
+:- state(T,at(Truck1,Node)), state(T,at(Truck2,Node)), Truck1 != Truck2.	% Two trucks can't be at the same node	
 
 %*
 GOAL CONDITIONS:
 - Constraints that express that the goal must be reached
-
-Explanation (max 100 words):
-[WRITE YOUR EXPLANATION HERE]
 *%
 
 % Get shortest distance from node A to node B
-shortest_path(A,A,0) :- charger(A).
+shortest_path(A,A,0) :- node(A).
 shortest_path(A,B,1) :- edge(A,B).
 shortest_path(A,B,D1+1) :- dist_(D1+1), shortest_path(A,Mid,D1), edge(Mid,B), not shortest_path(A,B,D2): dist_(D2), D1 > D2.
 
@@ -203,6 +194,7 @@ shortest_to_charge(Node,Dist) :- Dist=#min { D : shortest_path(Node,Charger,D), 
 can_charge(Truck,T) :- state(T,battery(Truck,B)), state(T,at(Truck,Node)), shortest_to_charge(Node,Dist), B>=Dist.
 
 % Make sure that all trucks can charge at any timestep
+% This is only necessary for the goal state but it's always useful
 :- not can_charge(Truck,T), truck(Truck), time(T).
 
 % Check if all trucks are parked
@@ -324,52 +316,29 @@ def on_model(model):
 					print("Double assignment")
 				demand[node][time] = subatom.arguments[1].number
 
-	one_line = True
-
 	print("Pretty printed answer set:")
 	time_steps = list(time_steps)
 	time_steps.sort()
 	print(time_steps)
 	for time in time_steps:
+		goal_string = ""
 		if time == goal_first_reached:
-			print(f"TIME STEP {time} GOAL REACHED\n")
-			break
+			goal_string = " GOAL REACHED"
 		
-		print(f"TIME STEP {time}")
-		if one_line:
-			for truck in truck_ids:
-				action =  actions[(time,truck)]
-				node =    truck_states[(time,truck)]['at']
-				battery = truck_states[(time,truck)]['battery']
-				load =    truck_states[(time,truck)]['load']
-				print(f"  Tr{truck} N{node}{ext(node,2)} {action}{ext(action)} B={battery}{ext(battery,2)} L={load} Can-Charge:{can_charge.get((time,truck))}")
-			print(f"  Supply:   {supply[time]}")
-			print(f"  Demand8:  {demand[8][time]}")
-			print(f"  Demand11: {demand[11][time]}")
-		else:
-			for truck in truck_ids:
-				print(f"  TRUCK {truck}:")
-				action =  actions[(time,truck)]
-				print(f"    Action:   {action}")
-				node =    truck_states[(time,truck)]['at']
-				print(f"    Location: {node}")
-				battery = truck_states[(time,truck)]['battery']
-				print(f"    Battery:  {battery}")
-				load =    truck_states[(time,truck)]['load']
-				print(f"    Load:     {load}")
-			print(f"  Supply:   {supply[time]}")
-			print(f"  Demand8:  {demand[8][time]}")
-			print(f"  Demand11: {demand[11][time]}")
+		print(f"TIME STEP {time}{goal_string}")
+		for truck in truck_ids:
+			action =  actions[(time,truck)]
+			node =    truck_states[(time,truck)]['at']
+			battery = truck_states[(time,truck)]['battery']
+			load =    truck_states[(time,truck)]['load']
+			print(f"  Tr{truck} N{node}{ext(node,2)} {action}{ext(action)} B={battery}{ext(battery,2)} L={load} Can-Charge:{can_charge.get((time,truck))}")
+		print(f"  Supply:   {supply[time]}")
+		print(f"  Demand8:  {demand[8][time]}")
+		print(f"  Demand11: {demand[11][time]}")
 		print()
 
-	# last_timestep = str(int(time_steps[-1]) + 1)
-	# for truck in truck_ids:
-	# 	node = truck_states[last_timestep + ',' + truck]['node']
-	# 	battery = truck_states[last_timestep + ',' + truck]['battery']
-	# 	packages = truck_states[last_timestep + ',' + truck]['packages']
-	# 	print(f"- At time step {last_timestep} truck {truck} was at node {node} with battery {battery}, packages {packages}.")
-	# print(f"- At time step {last_timestep} warehouse had {supply[last_timestep]} packages.")
-
+		if time == goal_first_reached:
+			break
 
 def main(prg):
 	prg.ground([("base", [])])
