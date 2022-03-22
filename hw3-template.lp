@@ -55,7 +55,11 @@ TIME STEPS:
 *%
 
 #const t=25. % This is an upper bound on the number of time steps needed
-time(1..t).
+possible_time(1..t).
+{ time(T) : possible_time(T) }.									% Create all subsets of time
+:- not time(1).													% Make sure the first timestep is there
+:- possible_time(T), possible_time(T+1), time(T+1), not time(T).% Make sure timesteps are consecutive
+last_timestep(M) :- M = #max { T : time(T) }.						% Get the last timestep of the subset
 
 %*
 ACTIONS:
@@ -74,7 +78,7 @@ GENERATE A SEQUENCE OF ACTIONS:
 *%
 
 % Perform exactly one action at each time step per truck
-1 { do(Truck,A,T) : action(A) } 1 :- time(T), T < t, truck(Truck).
+1 { do(Truck,A,T) : action(A) } 1 :- time(T), T < M, last_timestep(M), truck(Truck).
 
 %*
 INITIAL STATE:
@@ -202,16 +206,16 @@ parked(Truck,T) :- state(T,at(Truck,Node)), parking(Node).
 all_parked(T) :- parked(Truck,T) : truck(Truck); time(T).
 
 % Check if goal is reached at timestep T
-goal_reached(T) :- time(T),	
-	state(T,demand(Loc,0)) : delivery(Loc); 	% There is no demand at any delivery locations
+goal_reached(T) :- time(T),
+	state(T,demand(Loc,0)) : delivery(Loc); 	% There is no demand at any delivery locations	
 	all_parked(T),								% All trucks are parked
 	state(T,truck_load(Truck,0)) : truck(Truck).% All trucks have no packages aboard
 
-% Find at which timestep the goal is first reached
-goal_first_reached(M) :- M = #min { T : goal_reached(T) }.
+% Make sure the goal is reached at the last timestep
+:- not goal_reached(T), last_timestep(T).
 
-% Goal must be reached before time limit
-:- goal_first_reached(M), M >= t.
+% Make sure there are no more timesteps after the goal is reached
+:- last_timestep(M), goal_reached(T), M > T.
 
 %*
 OPTIMIZATION:
@@ -219,8 +223,8 @@ OPTIMIZATION:
   number of time steps
 *%
 
-% Find optimal solution by minimizing the time at which the goal is first reached
-#minimize { M : goal_first_reached(M) }.
+% Find optimal solution by minimizing the last timestep
+#minimize { T : last_timestep(T) }.
 
 %*
 OPTIONAL: ADDITIONAL RULES
@@ -228,7 +232,12 @@ OPTIONAL: ADDITIONAL RULES
   headings, put it here.
 *%
 
-:- do(Truck,move(I,J),T), do(Truck,move(J,I),T+1).	% No reason for truck to go back and forth
+
+% Find at which timestep the goal is first reached
+% goal_first_reached(M) :- M = #min { T : goal_reached(T) }, goal_reached(AnyTime).
+
+% :- do(Truck,move(I,J),T), do(Truck,move(J,I),T+1).	% No reason for truck to go back and forth
+% :- do(Truck,wait,T) : truck(Truck).					% No reason to all wait at the same time
 
 #show.
 
@@ -257,10 +266,6 @@ def on_model(model):
 	can_charge = dict()
 
 	for atom in model.symbols(atoms=True):
-		if atom.name == "goal_first_reached":
-			time = atom.arguments[0].number
-			goal_first_reached = time
-
 		if atom.name == "can_charge":
 			truck = atom.arguments[0].number
 			time = atom.arguments[1].number
@@ -275,10 +280,9 @@ def on_model(model):
 				print("Double assignment")
 			actions[(time,truck)] = action
 
-			time_steps.add(time)
-
 		if atom.name == "state":
 			time = atom.arguments[0].number
+			time_steps.add(time)
 			subatom = atom.arguments[1]
 			if subatom.name == "at":
 				truck = subatom.arguments[0].number
@@ -322,12 +326,14 @@ def on_model(model):
 	print(time_steps)
 	for time in time_steps:
 		goal_string = ""
-		if time == goal_first_reached:
+		if time == time_steps[-1]:
 			goal_string = " GOAL REACHED"
 		
 		print(f"TIME STEP {time}{goal_string}")
 		for truck in truck_ids:
-			action =  actions[(time,truck)]
+			action = ''
+			if actions.get((time,truck)):
+				action =  actions[(time,truck)]
 			node =    truck_states[(time,truck)]['at']
 			battery = truck_states[(time,truck)]['battery']
 			load =    truck_states[(time,truck)]['load']
@@ -336,9 +342,6 @@ def on_model(model):
 		print(f"  Demand8:  {demand[8][time]}")
 		print(f"  Demand11: {demand[11][time]}")
 		print()
-
-		if time == goal_first_reached:
-			break
 
 def main(prg):
 	prg.ground([("base", [])])
