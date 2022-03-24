@@ -86,26 +86,26 @@ INITIAL STATE:
 *%
 
 % state(T,truck_load(Truck,Load))
-state(1,truck_load(1,0)).	% truck 1 at timestep 1 has load 0
-state(1,truck_load(2,0)).	% truck 2 at timestep 1 has load 0
-state(1,truck_load(3,0)).	% truck 3 at timestep 1 has load 0
+state(1,truck_load(1,0)).	% at timestep 1 truck 1 has load 0
+state(1,truck_load(2,0)).	% at timestep 1 truck 2 has load 0
+state(1,truck_load(3,0)).	% at timestep 1 truck 3 has load 0
 
-% state(T,supply(Supply))		
-state(1,supply(5)).			% at timestep 1 the supply is 5
+% state(T,supply(Node,Supply))		
+state(1,supply(7,5)).		% at timestep 1 the supply at node 7 is 5
 
 % state(T,demand(Node,Demand))
-state(1,demand(8,2)).		% delivery node 8, at timestep 1 the demand is 2
-state(1,demand(11,2)). 		% delivery node 11, at timestep 1 the demand is 2
+state(1,demand(8,2)).		% at timestep 1 the demand at delivery node 8 is 2
+state(1,demand(11,2)). 		% at timestep 1 the demand at delivery node 11 is 2
 
 % state(T,battery(Truck,Battery))
-state(1,battery(1,6)). 		% truck 1 at timestep 1 has battery 6
-state(1,battery(2,7)).		% truck 2 at timestep 1 has battery 7
-state(1,battery(3,10)).		% truck 3 at timestep 1 has battery 10
+state(1,battery(1,6)). 		% at timestep 1 truck 1 has battery 6
+state(1,battery(2,7)).		% at timestep 1 truck 2 has battery 7
+state(1,battery(3,10)).		% at timestep 1 truck 3 has battery 10
 
 % state(T,at(Truck,Node))		
-state(1,at(1,1)). 			% truck 1 at timestep 1 is at node 1
-state(1,at(2,2)). 			% truck 2 at timestep 1 is at node 2
-state(1,at(3,3)).			% truck 3 at timestep 1 is at node 3
+state(1,at(1,1)). 			% at timestep 1 truck 1 is at node 1
+state(1,at(2,2)). 			% at timestep 1 truck 2 is at node 2
+state(1,at(3,3)).			% at timestep 1 truck 3 is at node 3
 
 %*
 SUBSEQUENT STATES OF THE WORLD:
@@ -118,17 +118,17 @@ to update the subsequent state accordingly.
 *%
 
 % We create fluents based on the valid range of each state attribute
-fluent(truck_load(Truck,L)) :- truck(Truck), load_(L).
-fluent(supply(S)) 			:- supply_(S).
-fluent(demand(Node,D)) 		:- delivery(Node), demand_(D).
-fluent(battery(Truck,B)) 	:- truck(Truck), battery_(B).
-fluent(at(Truck,Node)) 		:- truck(Truck), node(Node).
+fluent(truck_load(Truck,L)) :- truck(Truck), 	load_(L).
+fluent(supply(Node,S)) 		:- warehouse(Node), supply_(S).
+fluent(demand(Node,D)) 		:- delivery(Node), 	demand_(D).
+fluent(battery(Truck,B)) 	:- truck(Truck), 	battery_(B).
+fluent(at(Truck,Node)) 		:- truck(Truck), 	node(Node).
 
 % If loading truck then increase load and decrease supply
 make_true(T+1,truck_load(Truck,L+1)):- do(Truck,load,T), state(T,truck_load(Truck,L)).
 make_false(T+1,truck_load(Truck,L))	:- do(Truck,load,T), state(T,truck_load(Truck,L)).
-make_true(T+1,supply(S-1))          :- do(Truck,load,T), state(T,supply(S)).
-make_false(T+1,supply(S))           :- do(Truck,load,T), state(T,supply(S)).
+make_true(T+1,supply(Node,S-1))     :- do(Truck,load,T), state(T,supply(Node,S)), state(T,at(Truck,Node)).
+make_false(T+1,supply(Node,S))      :- do(Truck,load,T), state(T,supply(Node,S)), state(T,at(Truck,Node)).
 
 % If unloading truck then decrease load and decrease demand
 make_true(T+1,truck_load(Truck,L-1)):- do(Truck,unload,T), state(T,truck_load(Truck,L)).
@@ -161,7 +161,7 @@ RESTRICTIONS ON THE ACTIONS:
 % truck loading
 :- do(Truck,load,T), state(T,at(Truck,Node)), not warehouse(Node).						% Can't load if it's not at a warehouse
 :- do(Truck,load,T), state(T,truck_load(Truck,L)), load_capacity(Truck,Cap), L >= Cap.	% Can't load if it's at capacity
-:- do(Truck,load,T), state(T,supply(S)), S < 1.											% Can't load if there's no supply
+:- do(Truck,load,T), state(T,supply(Node,S)), state(T,at(Truck,Node)), S < 1.			% Can't load if there's no supply
 
 % truck unloading
 :- do(Truck,unload,T), state(T,at(Truck,Node)), not delivery(Node).				% Can't unload if it's not at a delivery location
@@ -175,9 +175,8 @@ RESTRICTIONS ON THE ACTIONS:
 % moving
 :- do(Truck,move(I,J),T), state(T,at(Truck,Node)), Node!=I. 		% Can't move from node where truck is not at
 :- do(Truck,move(I,J),T), state(T,battery(Truck,B)), B < 1. 		% Can't move with dead battery
-:- do(Truck1,move(I,J),T), state(T+1,at(Truck2,J)), Truck1!=Truck2. % Can't move to node where another truck will be
-:- do(Truck1,move(I1,J1),T), do(Truck2,move(I2,J2),T), Truck1!=Truck2, I1=J2, I2=J1. % Can't pass another truck on a piece of road
-:- state(T,at(Truck1,Node)), state(T,at(Truck2,Node)), Truck1 != Truck2.			 % Two trucks can't be at the same node
+:- do(TruckA,move(I,J),T), state(T+1,at(TruckB,J)), TruckA!=TruckB. % Can't move to node where another truck will be
+:- do(TruckA,move(A1,A2),T), do(TruckB,move(B1,B2),T), TruckA!=TruckB, A1=B2, B1=A2.% Can't pass another truck on a piece of road
 
 %*
 GOAL CONDITIONS:
@@ -223,6 +222,8 @@ OPTIMIZATION:
 
 % Find optimal solution by minimizing the last timestep
 #minimize { T : last_timestep(T) }.
+
+% Don't show any predicates to prevent clutter; we're pretty printing
 #show.
 
 %*
@@ -238,15 +239,14 @@ def ext(obj, length=11):
 	return ' '*(length-len(str(obj)))
 
 def on_model(model):
-	truck_ids = [1,2,3]
+	truck_ids = set()
 	actions = dict()
 	time_steps = set()
 
 	truck_states = defaultdict(dict)
 	demand = defaultdict(dict)
-	supply = dict()
+	supply = defaultdict(dict)
 
-	goal_first_reached = None
 	can_charge = dict()
 
 	for atom in model.symbols(atoms=True):
@@ -257,6 +257,7 @@ def on_model(model):
 
 		if atom.name == "do":
 			truck = atom.arguments[0].number
+			truck_ids.add(truck)
 			action = atom.arguments[1]
 			time = atom.arguments[2].number
 
@@ -293,9 +294,11 @@ def on_model(model):
 				truck_states[(time,truck)]["battery"] = battery
 
 			if subatom.name == "supply":
-				if supply.get(time):
+				node = subatom.arguments[0].number
+
+				if supply[node].get(time):
 					print("Double assignment")
-				supply[time] = subatom.arguments[0].number
+				supply[node][time] = subatom.arguments[1].number
 
 			if subatom.name == "demand":
 				node = subatom.arguments[0].number
@@ -321,10 +324,11 @@ def on_model(model):
 			node =    truck_states[(time,truck)]['at']
 			battery = truck_states[(time,truck)]['battery']
 			load =    truck_states[(time,truck)]['load']
-			print(f"  Tr{truck} N{node}{ext(node,2)} {action}{ext(action)} B={battery}{ext(battery,2)} L={load} Can-Charge:{can_charge.get((time,truck))}")
-		print(f"  Supply:   {supply[time]}")
-		print(f"  Demand8:  {demand[8][time]}")
-		print(f"  Demand11: {demand[11][time]}")
+			print(f"  Truck{truck} Node{node}{ext(node,2)} {action}{ext(action)} Battery={battery}{ext(battery,2)} Load={load} Can-Charge:{can_charge.get((time,truck))}")
+		for node, supply_dict in supply.items():
+			print(f"  Supply at Node{node}: {ext(node,2)}{supply_dict[time]}")
+		for node, demand_dict in demand.items():
+			print(f"  Demand at Node{node}: {ext(node,2)}{demand_dict[time]}")
 		print()
 
 def main(prg):
